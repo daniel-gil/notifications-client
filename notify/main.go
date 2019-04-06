@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/daniel-gil/notifications-client/client"
+	log "github.com/sirupsen/logrus"
 )
 
 var interval time.Duration
@@ -18,33 +20,47 @@ const maxStdinChannelCapacity = 1000
 var stopping = false
 
 func main() {
+	initLogger()
+
 	// read parameters and arguments from flags
 	url, interval, err := parseFlags()
 	if err != nil {
 		return
 	}
-	fmt.Printf("Notification client started: URL=%s, interval=%v\n", url, interval)
+	log.Infof("Notification client started: URL=%s, interval=%v\n", url, interval)
 
 	// configuration to handle the SIGINT termination signal
 	initSignalsHandler()
+
+	notifier := client.New()
 
 	// create a goroutine dedicated to read lines from stdin and send them to a channel to be processed later (each interval)
 	stdinCh := make(chan string, maxStdinChannelCapacity)
 	go stdinReader(stdinCh)
 
 	// read each 'interval' from the stdin
-	c := time.Tick(*interval)
-	for now := range c {
+	ch := time.Tick(*interval)
+	for range ch {
 		if !stopping {
 			numMsgs := len(stdinCh)
-			fmt.Printf("\n%vNew tick, num messages=%v", now, numMsgs)
+			log.Debugf("new tick. Num messages in channel: %v", numMsgs)
 			messages := []string{}
 			for i := 0; i < numMsgs; i++ {
 				messages = append(messages, <-stdinCh)
 			}
-			fmt.Printf("\n%v New messages read: %v\n", now, messages)
 
-			// TODO: send those messages to the notifier client
+			if len(messages) == 0 {
+				log.Debugf("no new messages")
+			} else {
+				log.Debugf("new messages read: %v", messages)
+
+				// TODO: send those messages to the notifier client
+				guid, err := notifier.Notify(messages)
+				if err != nil {
+					log.Fatalf("notifier has reported a failure: %v", err)
+				}
+				log.Infof("messages notified: GUID=%s", guid)
+			}
 		}
 	}
 }
@@ -95,10 +111,18 @@ func initSignalsHandler() {
 			// remains blocked here until a termination signal is received and read from the channel
 			sig := <-sigs
 
-			fmt.Printf("\nSignal caught: %+v\nExit program\n", sig)
+			log.Printf("\nSignal caught: %+v\nExit program\n", sig)
 			os.Exit(0)
 		}
 	}()
+}
+
+func initLogger() {
+	formatter := &log.TextFormatter{
+		FullTimestamp: true,
+	}
+	log.SetFormatter(formatter)
+	log.SetLevel(log.DebugLevel)
 }
 
 func stdinReader(stdinCh chan string) {
