@@ -19,7 +19,6 @@ const maxNumRetrials = 2
 
 var interval time.Duration
 var notifier ntfr.Notifier
-var ch chan string
 
 func main() {
 	// read parameters and arguments from flags
@@ -30,8 +29,7 @@ func main() {
 	log.Infof("HTTP Notification client started\nListening for new messages at URL %s with interval %v\n", url, interval)
 
 	// create a goroutine dedicated to read lines from stdin and send them to a channel to be processed later (each interval)
-	ch = make(chan string, maxChannelCapacity)
-	go messageReader(os.Stdin, ch)
+	ch := messageReader(os.Stdin)
 
 	notifier = ntfr.New(url)
 	go initErrorHandler()
@@ -39,27 +37,19 @@ func main() {
 	// read each 'interval' from the stdin and send the notifications using the notifier library
 	t := time.Tick(*interval)
 	for range t {
-		processMessages()
+		processMessages(ch)
 	}
 }
 
-func initErrorHandler() {
-	errCh := notifier.GetErrorChannel()
-	for {
-		select {
-		case e := <-errCh:
-			log.Errorf("Handling new error: [%s] for message: { GUID : \"%s\", Index : %v, Content : \"%s\" }", e.Error, e.GUID, e.Index, e.Message)
+func init() {
+	// logrus configuration
+	initLogger()
 
-			if e.NumRetrials < maxNumRetrials {
-				// retry to send this failed notification
-				log.Debugf("Retrial[%v]: { GUID : \"%s\", Index : %v, Content : \"%s\" }", e.NumRetrials, e.GUID, e.Index, e.Message)
-				notifier.Retry(e.Message, e.GUID, e.Index, e.NumRetrials)
-			}
-		}
-	}
+	// configuration to handle the SIGINT termination signal
+	initSignalsHandler()
 }
 
-func processMessages() {
+func processMessages(ch <-chan string) {
 	numMsgs := len(ch)
 	log.Debugf("new tick. Num messages in channel: %v", numMsgs)
 	messages := []string{}
@@ -79,14 +69,6 @@ func processMessages() {
 		}
 		log.Infof("messages notified: GUID=%s", guid)
 	}
-}
-
-func init() {
-	// logrus configuration
-	initLogger()
-
-	// configuration to handle the SIGINT termination signal
-	initSignalsHandler()
 }
 
 func parseFlags() (string, *time.Duration, error) {
@@ -149,16 +131,38 @@ func initLogger() {
 	log.SetLevel(log.DebugLevel)
 }
 
-func messageReader(r io.Reader, ch chan string) {
-	scanner := bufio.NewScanner(r)
-	scanner.Split(bufio.ScanLines)
+func messageReader(r io.Reader) <-chan string { // returns receive-only channel of strings
+	ch := make(chan string, maxChannelCapacity)
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		ch <- line
-	}
+	go func() {
+		scanner := bufio.NewScanner(r)
+		scanner.Split(bufio.ScanLines)
 
-	if err := scanner.Err(); err != nil {
-		log.Fatalf("failed at scanning stdin: %s", err)
+		for scanner.Scan() {
+			line := scanner.Text()
+			ch <- line
+		}
+
+		if err := scanner.Err(); err != nil {
+			log.Fatalf("failed at scanning stdin: %s", err)
+		}
+	}()
+
+	return ch
+}
+
+func initErrorHandler() {
+	errCh := notifier.GetErrorChannel()
+	for {
+		select {
+		case e := <-errCh:
+			log.Errorf("Handling new error: [%s] for message: { GUID : \"%s\", Index : %v, Content : \"%s\" }", e.Error, e.GUID, e.Index, e.Message)
+
+			if e.NumRetrials < maxNumRetrials {
+				// retry to send this failed notification
+				log.Warnf("Retrial[%v]: { GUID : \"%s\", Index : %v, Content : \"%s\" }", e.NumRetrials, e.GUID, e.Index, e.Message)
+				notifier.Retry(e.Message, e.GUID, e.Index, e.NumRetrials)
+			}
+		}
 	}
 }
