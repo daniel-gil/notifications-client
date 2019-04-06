@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -35,18 +36,18 @@ func main() {
 	notifier := client.New()
 
 	// create a goroutine dedicated to read lines from stdin and send them to a channel to be processed later (each interval)
-	stdinCh := make(chan string, maxStdinChannelCapacity)
-	go stdinReader(stdinCh)
+	ch := make(chan string, maxStdinChannelCapacity)
+	go messageReader(os.Stdin, ch)
 
 	// read each 'interval' from the stdin
-	ch := time.Tick(*interval)
-	for range ch {
+	t := time.Tick(*interval)
+	for range t {
 		if !stopping {
-			numMsgs := len(stdinCh)
+			numMsgs := len(ch)
 			log.Debugf("new tick. Num messages in channel: %v", numMsgs)
 			messages := []string{}
 			for i := 0; i < numMsgs; i++ {
-				messages = append(messages, <-stdinCh)
+				messages = append(messages, <-ch)
 			}
 
 			if len(messages) == 0 {
@@ -125,8 +126,8 @@ func initLogger() {
 	log.SetLevel(log.DebugLevel)
 }
 
-func stdinReader(stdinCh chan string) {
-	scanner := bufio.NewScanner(os.Stdin)
+func messageReader(r io.Reader, stdinCh chan string) {
+	scanner := bufio.NewScanner(r)
 	scanner.Split(bufio.ScanLines)
 
 	for scanner.Scan() {
