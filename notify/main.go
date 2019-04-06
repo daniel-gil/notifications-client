@@ -1,30 +1,51 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 )
 
 var interval time.Duration
 
+const maxStdinChannelCapacity = 1000
+
+var stopping = false
+
 func main() {
+	// read parameters and arguments from flags
 	url, interval, err := parseFlags()
 	if err != nil {
 		return
 	}
 	fmt.Printf("Notification client started: URL=%s, interval=%v\n", url, interval)
 
+	// configuration to handle the SIGINT termination signal
 	initSignalsHandler()
 
-	for {
-		// TODO: read each 'interval' from the stdin
+	// create a goroutine dedicated to read lines from stdin and send them to a channel to be processed later (each interval)
+	stdinCh := make(chan string, maxStdinChannelCapacity)
+	go stdinReader(stdinCh)
 
-		// TODO: handle messages
+	// read each 'interval' from the stdin
+	c := time.Tick(*interval)
+	for now := range c {
+		if !stopping {
+			numMsgs := len(stdinCh)
+			fmt.Printf("\n%vNew tick, num messages=%v", now, numMsgs)
+			messages := []string{}
+			for i := 0; i < numMsgs; i++ {
+				messages = append(messages, <-stdinCh)
+			}
+			fmt.Printf("\n%v New messages read: %v\n", now, messages)
+
+			// TODO: send those messages to the notifier client
+		}
 	}
 }
 
@@ -74,23 +95,24 @@ func initSignalsHandler() {
 			// remains blocked here until a termination signal is received and read from the channel
 			sig := <-sigs
 
-			fmt.Printf("\nTermination signal caught: %v.\nAre you sure that you want to terminate the application? [y/n]", sig)
-
-			// read the user response from the standard input (keyboard)
-			var s string
-			_, err := fmt.Scan(&s)
-			if err != nil {
-				panic(err)
-			}
-			s = strings.TrimSpace(s)
-			s = strings.ToLower(s)
-
-			// in case the response is positive, we should finish the program
-			if s == "y" || s == "yes" {
-				fmt.Println("Exit program")
-				os.Exit(0)
-			}
-			fmt.Println("Termination cancelled")
+			fmt.Printf("\nSignal caught: %+v\nExit program\n", sig)
+			os.Exit(0)
 		}
 	}()
+}
+
+func stdinReader(stdinCh chan string) {
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Split(bufio.ScanLines)
+
+	for scanner.Scan() {
+		if !stopping {
+			line := scanner.Text()
+			stdinCh <- line
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Fatalf("failed at scanning stdin: %s", err)
+	}
 }
