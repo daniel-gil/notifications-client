@@ -21,7 +21,6 @@ const maxStdinChannelCapacity = 1000
 var stopping = false
 
 func main() {
-	initLogger()
 
 	// read parameters and arguments from flags
 	url, interval, err := parseFlags()
@@ -30,10 +29,7 @@ func main() {
 	}
 	log.Infof("Notification client started: URL=%s, interval=%v\n", url, interval)
 
-	// configuration to handle the SIGINT termination signal
-	initSignalsHandler()
-
-	notifier := client.New()
+	notifier := client.New(url)
 
 	// create a goroutine dedicated to read lines from stdin and send them to a channel to be processed later (each interval)
 	ch := make(chan string, maxStdinChannelCapacity)
@@ -64,6 +60,14 @@ func main() {
 			}
 		}
 	}
+}
+
+func init() {
+	// logrus configuration
+	initLogger()
+
+	// configuration to handle the SIGINT termination signal
+	initSignalsHandler()
 }
 
 func parseFlags() (string, *time.Duration, error) {
