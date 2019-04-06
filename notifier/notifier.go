@@ -9,10 +9,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Notifier is the interface for sending notifications
 type Notifier interface {
 	Notify(messages []string) (string, error)
 	Retry(msg, guid string, index, numRetrials int)
-	GetErrorChannel() chan NError
+	GetErrorChannel() <-chan NError
 }
 
 type notifier struct {
@@ -21,16 +22,21 @@ type notifier struct {
 	errCh chan NError
 }
 
+const numWorkers = 5
 const maxChCap = 10
 const maxErrChCap = 100
 
+// New creates a new object that implements Notifier interface
 func New(url string) Notifier {
 	notifier := &notifier{
 		url:   url,
 		msgCh: make(chan message, maxChCap),
 		errCh: make(chan NError, maxErrChCap),
 	}
-	go notifier.messageHandler()
+
+	// create workers to handle the messages that arrive to the channel
+	notifier.startWorkers()
+
 	return notifier
 }
 
@@ -47,23 +53,24 @@ func initLogger() {
 	log.SetLevel(log.DebugLevel)
 }
 
-func (n *notifier) messageHandler() {
-	log.Debug("message handler started...")
-	for {
-		select {
-		case msg := <-n.msgCh:
-			log.Debugf("Handling new message: %s", msg.content)
-			err := n.send(msg)
-			if err != nil {
-				n.errCh <- NError{
-					GUID:        msg.guid,
-					Index:       msg.index,
-					Error:       err.Error(),
-					Message:     msg.content,
-					NumRetrials: msg.numRetrials + 1,
-				}
+func (n *notifier) startWorkers() {
+	for w := 1; w <= numWorkers; w++ {
+		go n.worker(w, n.msgCh)
+	}
+}
+
+func (n *notifier) worker(id int, ch <-chan message) {
+	for msg := range ch {
+		log.Debugf("Worker[%v] processing message: [%s]", id, msg.content)
+		err := n.send(msg)
+		if err != nil {
+			n.errCh <- NError{
+				GUID:        msg.guid,
+				Index:       msg.index,
+				Error:       err.Error(),
+				Message:     msg.content,
+				NumRetrials: msg.numRetrials + 1,
 			}
-			log.Debugf("message sent")
 		}
 	}
 }
@@ -77,11 +84,14 @@ func (n *notifier) Notify(messages []string) (string, error) {
 
 	// queueing messages into the channel to be later dispatched
 	for idx, msg := range messages {
-		n.msgCh <- message{
-			content:     msg,
-			guid:        guid.String(),
-			index:       idx,
-			numRetrials: 0,
+		// just queue those messages with content
+		if len(msg) > 0 {
+			n.msgCh <- message{
+				content:     msg,
+				guid:        guid.String(),
+				index:       idx,
+				numRetrials: 0,
+			}
 		}
 	}
 
@@ -97,7 +107,7 @@ func (n *notifier) Retry(msg, guid string, index, numRetrials int) {
 	}
 }
 
-func (n *notifier) GetErrorChannel() chan NError {
+func (n *notifier) GetErrorChannel() <-chan NError { // returns receive-only channel of NError
 	return n.errCh
 }
 

@@ -54,14 +54,15 @@ func processMessages(ch <-chan string) {
 	log.Debugf("new tick. Num messages in channel: %v", numMsgs)
 	messages := []string{}
 	for i := 0; i < numMsgs; i++ {
-		messages = append(messages, <-ch)
+		msg := <-ch
+		if len(msg) > 0 {
+			messages = append(messages, msg)
+		}
 	}
 
 	if len(messages) == 0 {
 		log.Debugf("no new messages")
 	} else {
-		log.Debugf("new messages read: %v", messages)
-
 		// send those messages to the notifier client
 		guid, err := notifier.Notify(messages)
 		if err != nil {

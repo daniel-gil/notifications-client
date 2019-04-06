@@ -12,7 +12,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const errorRatePercentage = 50
+const errorRatePercentage = 10
+
+var rnd *rand.Rand
 
 // this program launches a test server for receiving the notifications from notifier
 func main() {
@@ -27,18 +29,26 @@ func main() {
 		}
 
 		// check if we have to force an error
-		src := rand.NewSource(time.Now().UnixNano())
-		rnd := rand.New(src)
-		value := rnd.Intn(100)
+		value := getRandomValue()
+		log.Printf("RANDOM: %v\n", value)
 		if value > errorRatePercentage {
-			log.Printf("Error forced")
-			c.String(http.StatusGatewayTimeout, "")
-		} else {
 			c.String(http.StatusOK, string(body))
+		} else {
+			log.Printf("Error forced")
+			c.String(http.StatusBadRequest, "")
 		}
 	})
 
 	engine.Run(port())
+}
+
+func init() {
+	src := rand.NewSource(time.Now().UnixNano())
+	rnd = rand.New(src)
+}
+
+func getRandomValue() int {
+	return rnd.Intn(100)
 }
 
 func port() string {
