@@ -144,7 +144,7 @@ func (n *notifier) send(msg message) error {
 	if err != nil {
 		return fmt.Errorf("unable to send the request: %v", err)
 	}
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("unexpected HTTP Status: %s", resp.Status)
 	}
 	return nil
