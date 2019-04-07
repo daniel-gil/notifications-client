@@ -20,7 +20,7 @@ var rnd *rand.Rand
 func main() {
 	engine := gin.Default()
 
-	engine.POST("/api/echo", func(c *gin.Context) {
+	engine.POST("/api/notifications", func(c *gin.Context) {
 		body, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
 			log.Printf("Error reading body: %v", err)
