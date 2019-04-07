@@ -36,11 +36,9 @@ func main() {
 			c.String(http.StatusOK, string(body))
 		} else {
 			value := getRandomValue()
-			log.Printf("RANDOM: %v\n", value)
 			if value > *errorRatePercentage {
 				c.String(http.StatusOK, string(body))
 			} else {
-				log.Printf("Error forced")
 				c.String(http.StatusBadRequest, "")
 			}
 		}

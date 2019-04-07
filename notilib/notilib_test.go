@@ -1,6 +1,7 @@
-package notifier
+package notilib
 
 import (
+	"net/http"
 	"testing"
 	"time"
 )
@@ -17,19 +18,20 @@ func TestNew(t *testing.T) {
 		name   string
 		url    string
 		conf   *Config
+		client *http.Client
 		errMsg string
 	}{
-		{"Positive TC: default config", "http://localhost/api", nil, ""},
-		{"Positive TC: custom config", "http://localhost/api", conf, ""},
-		{"Missing URL", "", nil, "empty URL"},
-		{"Invalid URL", "http/abc", nil, "invalid URL"},
+		{"Positive TC: default config", "http://localhost/api", nil, http.DefaultClient, ""},
+		{"Positive TC: custom config", "http://localhost/api", conf, http.DefaultClient, ""},
+		{"Missing URL", "", nil, http.DefaultClient, "empty URL"},
+		{"Invalid URL", "http/abc", nil, http.DefaultClient, "invalid URL"},
 	}
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			var foundError = false
 
-			notifier, err := New(tc.url, tc.conf)
+			notifier, err := New(tc.url, tc.client, tc.conf)
 			if err != nil {
 				if checkError(tc.errMsg, err, t) {
 					foundError = true
@@ -59,16 +61,17 @@ func TestNotify(t *testing.T) {
 		conf                  *Config
 		messages              []string
 		expectedChannelLength int
+		client                *http.Client
 		errMsg                string
 	}{
-		{"Positive TC: default config", "http://localhost/api", nil, []string{"abc", "hello world", "hola mundo", "hallo Welt"}, 4, ""},
+		{"Positive TC: default config", "http://localhost/api", nil, []string{"abc", "hello world", "hola mundo", "hallo Welt"}, 4, http.DefaultClient, ""},
 	}
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			var foundError = false
 
-			notifier, err := New(tc.url, tc.conf)
+			notifier, err := New(tc.url, tc.client, tc.conf)
 			if err != nil {
 				if checkError(tc.errMsg, err, t) {
 					foundError = true
@@ -107,16 +110,17 @@ func TestRetry(t *testing.T) {
 		url                   string
 		conf                  *Config
 		expectedChannelLength int
+		client                *http.Client
 		errMsg                string
 	}{
-		{"Positive TC: default config", "http://localhost/api", nil, 1, ""},
+		{"Positive TC: default config", "http://localhost/api", nil, 1, http.DefaultClient, ""},
 	}
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			var foundError = false
 
-			notifier, err := New(tc.url, tc.conf)
+			notifier, err := New(tc.url, tc.client, tc.conf)
 			if err != nil {
 				if checkError(tc.errMsg, err, t) {
 					foundError = true

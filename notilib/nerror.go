@@ -1,4 +1,4 @@
-package notifier
+package notilib
 
 type NError struct {
 	Error       string

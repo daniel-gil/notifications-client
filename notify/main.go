@@ -5,13 +5,14 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
 
-	"github.com/daniel-gil/notifications-client/notifier"
+	nl "github.com/daniel-gil/notifications-client/notilib"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -20,7 +21,7 @@ const defaultChannelCapacity = 500
 const defaultMaxNumRetrials = 2
 const defaultMaxNumMessagesToProcess = 100
 
-var client notifier.Notifier
+var notilib nl.Notilib
 var conf *config
 
 type config struct {
@@ -41,18 +42,20 @@ func main() {
 	log.Debugf("Listening for new messages using the following configuration: \n%v\n", conf)
 
 	// create a goroutine dedicated to read lines from stdin and send them to a channel to be processed later (each interval)
-	ch := messageReader(os.Stdin)
+	ch := listen(os.Stdin, conf.channelCapacity)
 
-	// use the default configuration (passing nil as the second parameter)
-	client, err = notifier.New(conf.url, nil)
+	// create a notilib instance using the default configuration (passing nil as the second parameter)
+	client := &http.Client{}
+	notilib, err = nl.New(conf.url, client, nil)
 	if err != nil {
 		log.Errorf("unable to start the client: %v", err)
 		return
 	}
-	client.StartService()
 
 	// start the error handler responsible for retrials
 	go initErrorHandler()
+
+	notilib.StartService()
 
 	// process messages each 'interval'
 	tick := time.Tick(conf.interval)
@@ -68,6 +71,26 @@ func init() {
 
 	// configuration to handle the SIGINT termination signal
 	initSignalsHandler()
+}
+
+func listen(r io.Reader, chanCap int) <-chan string {
+	ch := make(chan string, chanCap)
+
+	go func() {
+		scanner := bufio.NewScanner(r)
+		scanner.Split(bufio.ScanLines)
+
+		for scanner.Scan() {
+			line := scanner.Text()
+			ch <- line
+		}
+
+		if err := scanner.Err(); err != nil {
+			log.Fatalf("failed at scanning stdin: %s", err)
+		}
+	}()
+
+	return ch
 }
 
 func processMessages(ch <-chan string) {
@@ -91,9 +114,9 @@ func processMessages(ch <-chan string) {
 		log.Debugf("no new messages")
 	} else {
 		// send those messages to the notifier client
-		guid, err := client.Notify(messages)
+		guid, err := notilib.Notify(messages)
 		if err != nil {
-			log.Errorf("notifier has reported a failure: %v", err)
+			log.Errorf("notifier client has reported a failure: %v", err)
 		}
 		log.Infof("messages notified: GUID=%s", guid)
 	}
@@ -180,37 +203,17 @@ func initLogger() {
 	log.SetLevel(log.DebugLevel)
 }
 
-func messageReader(r io.Reader) <-chan string { // returns receive-only channel of strings
-	ch := make(chan string, defaultChannelCapacity)
-
-	go func() {
-		scanner := bufio.NewScanner(r)
-		scanner.Split(bufio.ScanLines)
-
-		for scanner.Scan() {
-			line := scanner.Text()
-			ch <- line
-		}
-
-		if err := scanner.Err(); err != nil {
-			log.Fatalf("failed at scanning stdin: %s", err)
-		}
-	}()
-
-	return ch
-}
-
 func initErrorHandler() {
-	errCh := client.GetErrorChannel()
+	errCh := notilib.GetErrorChannel()
 	for {
 		select {
 		case e := <-errCh:
 			log.Errorf("Handling new error: [%s] for message: { GUID : \"%s\", Index : %v, Content : \"%s\" }", e.Error, e.GUID, e.Index, e.Message)
 
-			if e.NumRetrials < conf.maxNumRetrials {
+			if e.NumRetrials <= conf.maxNumRetrials {
 				// retry to send this failed notification
 				log.Warnf("Retrial[%v]: { GUID : \"%s\", Index : %v, Content : \"%s\" }", e.NumRetrials, e.GUID, e.Index, e.Message)
-				client.Retry(e.Message, e.GUID, e.Index, e.NumRetrials)
+				notilib.Retry(e.Message, e.GUID, e.Index, e.NumRetrials)
 			}
 		}
 	}

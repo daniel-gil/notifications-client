@@ -1,4 +1,4 @@
-package notifier
+package notilib
 
 type message struct {
 	content     string
