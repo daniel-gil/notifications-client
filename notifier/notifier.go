@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	uuid "github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
@@ -17,15 +18,17 @@ type Notifier interface {
 }
 
 type notifier struct {
-	url   string
-	msgCh chan message
-	errCh chan NError
+	client *http.Client
+	url    string
+	msgCh  chan message
+	errCh  chan NError
 }
 
 const prefix = "notifier"
-const defaultNumWorkers = 5
-const defaultMaxChCap = 10
-const defaultMaxErrChCap = 100
+const defaultMaxChCap = 1000
+const defaultMaxErrChCap = 500
+const defaultBurstLimit = 1000
+const defaultNumMessagesPerSecond = 1000
 
 // New creates a new object that implements Notifier interface
 func New(url string, conf *Config) Notifier {
@@ -35,15 +38,32 @@ func New(url string, conf *Config) Notifier {
 	log.Debugf("Notifier configuration: \n%v\n", conf)
 
 	notifier := &notifier{
-		url:   url,
-		msgCh: make(chan message, conf.MaxChCap),
-		errCh: make(chan NError, conf.MaxErrChCap),
+		url:    url,
+		client: &http.Client{},
+		msgCh:  make(chan message, conf.MaxChCap),
+		errCh:  make(chan NError, conf.MaxErrChCap),
 	}
-
-	// create workers to handle the messages that arrive to the channel
-	notifier.startWorkers(conf.NumWorkers)
-
+	go notifier.startService(conf.NumMessagesPerSecond, conf.BurstLimit)
 	return notifier
+}
+
+func (n *notifier) startService(numMessagesPerSecond, burstLimit int) {
+	rate := time.Second / time.Duration(numMessagesPerSecond)
+	tick := time.NewTicker(rate)
+	defer tick.Stop()
+	throttle := make(chan time.Time, burstLimit)
+	go func() {
+		for t := range tick.C {
+			select {
+			case throttle <- t:
+			default:
+			}
+		}
+	}()
+	for msg := range n.msgCh {
+		<-throttle
+		go n.dispatchMessage(msg)
+	}
 }
 
 func init() {
@@ -55,18 +75,15 @@ func getConfiguration(conf *Config) *Config {
 	if conf == nil {
 		conf = buildDefaultConfiguration()
 	}
-	if conf.NumWorkers <= 0 {
-		// we need at least 1 worker to process notifications
-		conf.NumWorkers = 1
-	}
 	return conf
 }
 
 func buildDefaultConfiguration() *Config {
 	return &Config{
-		NumWorkers:  defaultNumWorkers,
-		MaxChCap:    defaultMaxChCap,
-		MaxErrChCap: defaultMaxErrChCap,
+		BurstLimit:           defaultBurstLimit,
+		NumMessagesPerSecond: defaultNumMessagesPerSecond,
+		MaxChCap:             defaultMaxChCap,
+		MaxErrChCap:          defaultMaxErrChCap,
 	}
 }
 
@@ -76,28 +93,6 @@ func initLogger() {
 	}
 	log.SetFormatter(formatter)
 	log.SetLevel(log.DebugLevel)
-}
-
-func (n *notifier) startWorkers(numWorkers int) {
-	for w := 1; w <= numWorkers; w++ {
-		go n.worker(w, n.msgCh)
-	}
-}
-
-func (n *notifier) worker(id int, ch <-chan message) {
-	for msg := range ch {
-		log.Debugf("Worker[%v] processing message: [%s]", id, msg.content)
-		err := n.send(msg)
-		if err != nil {
-			n.errCh <- NError{
-				GUID:        msg.guid,
-				Index:       msg.index,
-				Error:       err.Error(),
-				Message:     msg.content,
-				NumRetrials: msg.numRetrials + 1,
-			}
-		}
-	}
 }
 
 func (n *notifier) Notify(messages []string) (string, error) {
@@ -119,7 +114,6 @@ func (n *notifier) Notify(messages []string) (string, error) {
 			}
 		}
 	}
-
 	return guid.String(), nil
 }
 
@@ -136,14 +130,27 @@ func (n *notifier) GetErrorChannel() <-chan NError { // returns receive-only cha
 	return n.errCh
 }
 
+func (n *notifier) dispatchMessage(msg message) {
+	err := n.send(msg)
+	if err != nil {
+		n.errCh <- NError{
+			GUID:        msg.guid,
+			Index:       msg.index,
+			Error:       err.Error(),
+			Message:     msg.content,
+			NumRetrials: msg.numRetrials + 1,
+		}
+	}
+}
+
 func (n *notifier) send(msg message) error {
 	body := strings.NewReader(msg.content)
 	req, err := http.NewRequest("POST", n.url, body)
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := n.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("unable to send the request: %v", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("unexpected HTTP Status: %s", resp.Status)
 	}

@@ -45,11 +45,14 @@ func main() {
 
 	// use the default configuration (passing nil as the second parameter)
 	client = notifier.New(conf.url, nil)
+
+	// start the error handler responsible for retrials
 	go initErrorHandler()
 
-	// read each 'interval' from the stdin and send the notifications using the notifier library
-	t := time.Tick(conf.interval)
-	for range t {
+	// process messages each 'interval'
+	tick := time.Tick(conf.interval)
+	for {
+		<-tick
 		processMessages(ch)
 	}
 }
@@ -93,7 +96,6 @@ func processMessages(ch <-chan string) {
 
 func parseFlags() error {
 	conf = &config{}
-
 	const (
 		urlFlagUsage                     = "URL where to send notifications"
 		intervalFlagUsage                = "Notification interval"
@@ -159,7 +161,7 @@ func initSignalsHandler() {
 			// remains blocked here until a termination signal is received and read from the channel
 			sig := <-sigs
 
-			log.Printf("\nSignal caught: %+v\nExit program\n", sig)
+			log.Printf("Signal caught: %+v\nExit program\n", sig)
 			os.Exit(0)
 		}
 	}()

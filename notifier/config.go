@@ -6,15 +6,17 @@ import (
 )
 
 type Config struct {
-	NumWorkers  int
-	MaxChCap    int
-	MaxErrChCap int
+	BurstLimit           int
+	NumMessagesPerSecond int
+	MaxChCap             int
+	MaxErrChCap          int
 }
 
 func (c Config) String() string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("{\n"))
-	sb.WriteString(fmt.Sprintf("  NumWorkers: %v,\n", c.NumWorkers))
+	sb.WriteString(fmt.Sprintf("  BurstLimit: %v,\n", c.BurstLimit))
+	sb.WriteString(fmt.Sprintf("  NumMessagesPerSecond: %v,\n", c.NumMessagesPerSecond))
 	sb.WriteString(fmt.Sprintf("  MaxChCap: %v,\n", c.MaxChCap))
 	sb.WriteString(fmt.Sprintf("  MaxErrChCap: %v,\n", c.MaxErrChCap))
 	sb.WriteString(fmt.Sprintf("}\n"))
