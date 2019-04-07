@@ -18,7 +18,7 @@ import (
 const defaultInterval = 5 * time.Second
 const defaultChannelCapacity = 500
 const defaultMaxNumRetrials = 2
-const defaultMaxNumMessagesToProcess = 1000
+const defaultMaxNumMessagesToProcess = 100
 
 var client notifier.Notifier
 var conf *config
@@ -111,7 +111,7 @@ func parseFlags() error {
 		fmt.Printf("	-i, --interval=5s	%s\n", intervalFlagUsage)
 		fmt.Printf("	-c, --chcap=500		%s\n", channelCapacityFlagUsage)
 		fmt.Printf("	-r, --retrials=2	%s\n", maxNumRetrialsFlagUsage)
-		fmt.Printf("	-m, --messages=1000	%s\n", maxNumMessagesToProcessFlagUsage)
+		fmt.Printf("	-m, --messages=100	%s\n", maxNumMessagesToProcessFlagUsage)
 		return fmt.Errorf("wrong usage")
 	}
 
