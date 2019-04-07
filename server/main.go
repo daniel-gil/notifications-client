@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -12,12 +13,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const errorRatePercentage = 10
-
 var rnd *rand.Rand
 
 // this program launches a test server for receiving the notifications from notifier
 func main() {
+	errorRatePercentage := flag.Int("error", 0, "Error rate percentage to simulate failures")
+	flag.Parse()
+	log.Printf("Server configuration: errorRatePercentage=%v%%", *errorRatePercentage)
+
 	engine := gin.Default()
 
 	engine.POST("/api/notifications", func(c *gin.Context) {
@@ -29,16 +32,19 @@ func main() {
 		}
 
 		// check if we have to force an error
-		value := getRandomValue()
-		log.Printf("RANDOM: %v\n", value)
-		if value > errorRatePercentage {
+		if *errorRatePercentage == 0 {
 			c.String(http.StatusOK, string(body))
 		} else {
-			log.Printf("Error forced")
-			c.String(http.StatusBadRequest, "")
+			value := getRandomValue()
+			log.Printf("RANDOM: %v\n", value)
+			if value > *errorRatePercentage {
+				c.String(http.StatusOK, string(body))
+			} else {
+				log.Printf("Error forced")
+				c.String(http.StatusBadRequest, "")
+			}
 		}
 	})
-
 	engine.Run(port())
 }
 
