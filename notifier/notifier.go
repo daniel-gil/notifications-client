@@ -103,17 +103,19 @@ func (n *notifier) Notify(messages []string) (string, error) {
 	}
 
 	// queueing messages into the channel to be later dispatched
-	for idx, msg := range messages {
-		// just queue those messages with content
-		if len(msg) > 0 {
-			n.msgCh <- message{
-				content:     msg,
-				guid:        guid.String(),
-				index:       idx,
-				numRetrials: 0,
+	go func() {
+		for idx, msg := range messages {
+			// just queue those messages with content
+			if len(msg) > 0 {
+				n.msgCh <- message{
+					content:     msg,
+					guid:        guid.String(),
+					index:       idx,
+					numRetrials: 0,
+				}
 			}
 		}
-	}
+	}()
 	return guid.String(), nil
 }
 
