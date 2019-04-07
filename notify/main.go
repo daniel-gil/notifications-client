@@ -44,7 +44,12 @@ func main() {
 	ch := messageReader(os.Stdin)
 
 	// use the default configuration (passing nil as the second parameter)
-	client = notifier.New(conf.url, nil)
+	client, err = notifier.New(conf.url, nil)
+	if err != nil {
+		log.Errorf("unable to start the client: %v", err)
+		return
+	}
+	client.StartService()
 
 	// start the error handler responsible for retrials
 	go initErrorHandler()

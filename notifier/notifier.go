@@ -3,6 +3,7 @@ package notifier
 import (
 	"fmt"
 	"net/http"
+	neturl "net/url"
 	"strings"
 	"time"
 
@@ -15,60 +16,82 @@ type Notifier interface {
 	Notify(messages []string) (string, error)
 	Retry(msg, guid string, index, numRetrials int)
 	GetErrorChannel() <-chan NError
+	GetConfig() *Config
+	StartService()
+	GetMessageChannelLength() int
 }
 
 type notifier struct {
+	conf   *Config
 	client *http.Client
 	url    string
 	msgCh  chan message
 	errCh  chan NError
 }
 
-const prefix = "notifier"
 const defaultMaxChCap = 1000
 const defaultMaxErrChCap = 500
 const defaultBurstLimit = 1000
 const defaultNumMessagesPerSecond = 1000
 
 // New creates a new object that implements Notifier interface
-func New(url string, conf *Config) Notifier {
+func New(url string, conf *Config) (Notifier, error) {
+
+	err := checkURLFormat(url)
+	if err != nil {
+		return nil, err
+	}
 
 	// if no configuration is provided, generate the default configuration
 	conf = getConfiguration(conf)
 	log.Debugf("Notifier configuration: \n%v\n", conf)
 
 	notifier := &notifier{
+		conf:   conf,
 		url:    url,
 		client: &http.Client{},
 		msgCh:  make(chan message, conf.MaxChCap),
 		errCh:  make(chan NError, conf.MaxErrChCap),
 	}
-	go notifier.startService(conf.NumMessagesPerSecond, conf.BurstLimit)
-	return notifier
+	return notifier, nil
 }
 
-func (n *notifier) startService(numMessagesPerSecond, burstLimit int) {
-	rate := time.Second / time.Duration(numMessagesPerSecond)
-	tick := time.NewTicker(rate)
-	defer tick.Stop()
-	throttle := make(chan time.Time, burstLimit)
+func (n *notifier) GetConfig() *Config {
+	return n.conf
+}
+
+func (n *notifier) StartService() {
 	go func() {
-		for t := range tick.C {
-			select {
-			case throttle <- t:
-			default:
+		rate := time.Second / time.Duration(n.conf.NumMessagesPerSecond)
+		tick := time.NewTicker(rate)
+		defer tick.Stop()
+		throttle := make(chan time.Time, n.conf.BurstLimit)
+		go func() {
+			for t := range tick.C {
+				select {
+				case throttle <- t:
+				default:
+				}
 			}
+		}()
+		for msg := range n.msgCh {
+			<-throttle
+			go n.dispatchMessage(msg)
 		}
 	}()
-	for msg := range n.msgCh {
-		<-throttle
-		go n.dispatchMessage(msg)
-	}
 }
 
 func init() {
 	// logrus configuration
 	initLogger()
+}
+
+func initLogger() {
+	formatter := &log.TextFormatter{
+		FullTimestamp: true,
+	}
+	log.SetFormatter(formatter)
+	log.SetLevel(log.DebugLevel)
 }
 
 func getConfiguration(conf *Config) *Config {
@@ -85,14 +108,6 @@ func buildDefaultConfiguration() *Config {
 		MaxChCap:             defaultMaxChCap,
 		MaxErrChCap:          defaultMaxErrChCap,
 	}
-}
-
-func initLogger() {
-	formatter := &log.TextFormatter{
-		FullTimestamp: true,
-	}
-	log.SetFormatter(formatter)
-	log.SetLevel(log.DebugLevel)
 }
 
 func (n *notifier) Notify(messages []string) (string, error) {
@@ -132,6 +147,10 @@ func (n *notifier) GetErrorChannel() <-chan NError { // returns receive-only cha
 	return n.errCh
 }
 
+func (n *notifier) GetMessageChannelLength() int {
+	return len(n.msgCh)
+}
+
 func (n *notifier) dispatchMessage(msg message) {
 	err := n.send(msg)
 	if err != nil {
@@ -152,9 +171,24 @@ func (n *notifier) send(msg message) error {
 	if err != nil {
 		return fmt.Errorf("unable to send the request: %v", err)
 	}
+
+	// defer the close operation of the response body to avoid a resource leak
 	defer resp.Body.Close()
+
+	// check if the response is a successful HTTP code: 200 OK or 201 Created
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("unexpected HTTP Status: %s", resp.Status)
+	}
+	return nil
+}
+
+func checkURLFormat(url string) error {
+	if url == "" {
+		return fmt.Errorf("empty URL")
+	}
+	_, err := neturl.ParseRequestURI(url)
+	if err != nil {
+		return fmt.Errorf("invalid URL")
 	}
 	return nil
 }
