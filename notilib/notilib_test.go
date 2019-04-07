@@ -42,12 +42,6 @@ func TestNew(t *testing.T) {
 				if notifier == nil {
 					t.Errorf("notifier is nil")
 				}
-				if tc.conf != nil {
-					cfg := notifier.GetConfig()
-					if cfg != tc.conf {
-						t.Errorf("configuration mismatch")
-					}
-				}
 			}
 		})
 	}

@@ -27,10 +27,7 @@ type Notilib interface {
 	// Start the service that reads from the Message Channel and send them to the URL
 	StartService()
 
-	// Retrives the configuration
-	GetConfig() *Config
-
-	// Retrives the number of elements in the Message Channel
+	// Retrives the number of elements in the Message Channel pending to be notified
 	GetMessageChannelLength() int
 
 	// Retrieves the Error Channel for reading operations (to be able to handle those errors)
@@ -127,10 +124,6 @@ func (n *notilib) Retry(msg, guid string, index, numRetrials int) {
 
 func (n *notilib) StartService() {
 	go n.listener.listen()
-}
-
-func (n *notilib) GetConfig() *Config {
-	return n.conf
 }
 
 func (n *notilib) GetMessageChannelLength() int {
