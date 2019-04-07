@@ -31,30 +31,20 @@ type config struct {
 	maxNumMessagesToProcess int
 }
 
-func (c config) String() string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("{\n"))
-	sb.WriteString(fmt.Sprintf("  url: \"%s\",\n", c.url))
-	sb.WriteString(fmt.Sprintf("  interval: \"%v\",\n", c.interval))
-	sb.WriteString(fmt.Sprintf("  channelCapacity: %v,\n", c.channelCapacity))
-	sb.WriteString(fmt.Sprintf("  maxNumRetrials: %v,\n", c.maxNumRetrials))
-	sb.WriteString(fmt.Sprintf("  maxNumMessagesToProcess: %v,\n", c.maxNumMessagesToProcess))
-	sb.WriteString(fmt.Sprintf("}\n"))
-	return sb.String()
-}
-
 func main() {
 	// read parameters and arguments from flags
 	err := parseFlags()
 	if err != nil {
 		return
 	}
-	log.Infof("HTTP Notification client started\nListening for new messages using the following configuration: \n%v\n", conf)
+	log.Infof("HTTP Notification client started")
+	log.Debugf("Listening for new messages using the following configuration: \n%v\n", conf)
 
 	// create a goroutine dedicated to read lines from stdin and send them to a channel to be processed later (each interval)
 	ch := messageReader(os.Stdin)
 
-	client = notifier.New(conf.url)
+	// use the default configuration (passing nil as the second parameter)
+	client = notifier.New(conf.url, nil)
 	go initErrorHandler()
 
 	// read each 'interval' from the stdin and send the notifications using the notifier library
@@ -217,4 +207,16 @@ func initErrorHandler() {
 			}
 		}
 	}
+}
+
+func (c config) String() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("{\n"))
+	sb.WriteString(fmt.Sprintf("  url: \"%s\",\n", c.url))
+	sb.WriteString(fmt.Sprintf("  interval: \"%v\",\n", c.interval))
+	sb.WriteString(fmt.Sprintf("  channelCapacity: %v,\n", c.channelCapacity))
+	sb.WriteString(fmt.Sprintf("  maxNumRetrials: %v,\n", c.maxNumRetrials))
+	sb.WriteString(fmt.Sprintf("  maxNumMessagesToProcess: %v,\n", c.maxNumMessagesToProcess))
+	sb.WriteString(fmt.Sprintf("}\n"))
+	return sb.String()
 }

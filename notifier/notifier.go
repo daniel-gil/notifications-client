@@ -22,20 +22,26 @@ type notifier struct {
 	errCh chan NError
 }
 
-const numWorkers = 5
-const maxChCap = 10
-const maxErrChCap = 100
+const prefix = "notifier"
+const defaultNumWorkers = 5
+const defaultMaxChCap = 10
+const defaultMaxErrChCap = 100
 
 // New creates a new object that implements Notifier interface
-func New(url string) Notifier {
+func New(url string, conf *Config) Notifier {
+
+	// if no configuration is provided, generate the default configuration
+	conf = getConfiguration(conf)
+	log.Debugf("Notifier configuration: \n%v\n", conf)
+
 	notifier := &notifier{
 		url:   url,
-		msgCh: make(chan message, maxChCap),
-		errCh: make(chan NError, maxErrChCap),
+		msgCh: make(chan message, conf.MaxChCap),
+		errCh: make(chan NError, conf.MaxErrChCap),
 	}
 
 	// create workers to handle the messages that arrive to the channel
-	notifier.startWorkers()
+	notifier.startWorkers(conf.NumWorkers)
 
 	return notifier
 }
@@ -43,6 +49,25 @@ func New(url string) Notifier {
 func init() {
 	// logrus configuration
 	initLogger()
+}
+
+func getConfiguration(conf *Config) *Config {
+	if conf == nil {
+		conf = buildDefaultConfiguration()
+	}
+	if conf.NumWorkers <= 0 {
+		// we need at least 1 worker to process notifications
+		conf.NumWorkers = 1
+	}
+	return conf
+}
+
+func buildDefaultConfiguration() *Config {
+	return &Config{
+		NumWorkers:  defaultNumWorkers,
+		MaxChCap:    defaultMaxChCap,
+		MaxErrChCap: defaultMaxErrChCap,
+	}
 }
 
 func initLogger() {
@@ -53,7 +78,7 @@ func initLogger() {
 	log.SetLevel(log.DebugLevel)
 }
 
-func (n *notifier) startWorkers() {
+func (n *notifier) startWorkers(numWorkers int) {
 	for w := 1; w <= numWorkers; w++ {
 		go n.worker(w, n.msgCh)
 	}
