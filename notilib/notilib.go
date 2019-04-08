@@ -6,41 +6,29 @@ import (
 	neturl "net/url"
 	"time"
 
-	uuid "github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
 )
 
-type Notifier interface {
-	// Notifies notifications to the configured URL
-	Notify(messages []string) (string, error)
-}
-
-type Retrialer interface {
-	// Retries sending failed notifications
-	Retry(msg, guid string, index, numRetrials int)
-}
-
+// Notilib interface exposes the public methods of the library
 type Notilib interface {
-	Notifier
-	Retrialer
+	// Listen start the service that reads from the Message Channel and send them to the URL
+	Listen()
 
-	// Start the service that reads from the Message Channel and send them to the URL
-	StartService()
+	// Notify queues the messages into the Message Channel
+	Notify(messages []string) (string, error)
 
-	// Retrives the number of elements in the Message Channel pending to be notified
-	GetMessageChannelLength() int
+	// Retry queue a message structure into the Message Channel
+	Retry(msg, guid string, index, numRetrials int)
 
-	// Retrieves the Error Channel for reading operations (to be able to handle those errors)
+	// Retrieves the receive-only Error Channel for reading operations (to be able to handle those errors)
 	GetErrorChannel() <-chan NError
 }
 
 type notilib struct {
-	conf     *Config
-	client   *http.Client
-	url      string
-	msgCh    chan message
-	errCh    chan NError
-	listener listener
+	errCh     chan NError
+	listener  Listener
+	notifier  Notifier
+	retrialer Retrialer
 }
 
 const defaultMaxChCap = 1000
@@ -49,26 +37,54 @@ const defaultBurstLimit = 1000
 const defaultNumMessagesPerSecond = 1000
 const defaultReqChanCapacity = 100
 
-// New creates a new object that implements Notifier interface
+// New creates a new object that implements Notilib interface
 func New(url string, client *http.Client, conf *Config) (Notilib, error) {
-
+	// validate the URL format
 	err := checkURLFormat(url)
 	if err != nil {
 		return nil, err
 	}
 
-	// if no configuration is provided, generate the default configuration
+	// if no configuration is provided, build a default configuration
 	conf = getConfiguration(conf)
 	log.Debugf("Notifier configuration: \n%v\n", conf)
 
-	if client == nil {
-		client = http.DefaultClient
-	}
-
+	// create channels
 	msgChan := make(chan message, conf.MaxChCap)
 	errCh := make(chan NError, conf.MaxErrChCap)
 
-	// build services to be injected
+	// create a listener
+	listener, err := buildListener(url, conf, client, msgChan, errCh)
+	if err != nil {
+		return nil, err
+	}
+
+	// create a notifier
+	notifier, err := newNotifier(msgChan)
+	if err != nil {
+		return nil, err
+	}
+
+	// create a retrialer
+	retrialer, err := newRetrialer(msgChan)
+	if err != nil {
+		return nil, err
+	}
+
+	notilib := &notilib{
+		errCh:     errCh,
+		listener:  listener,
+		notifier:  notifier,
+		retrialer: retrialer,
+	}
+
+	return notilib, nil
+}
+
+func buildListener(url string, conf *Config, client *http.Client, msgChan chan message, errCh chan NError) (Listener, error) {
+	if client == nil {
+		client = http.DefaultClient
+	}
 	clientHandler := newClientHandler(client)
 	sender := newSender(url, clientHandler, errCh)
 	rate := time.Second / time.Duration(conf.NumMessagesPerSecond)
@@ -76,61 +92,22 @@ func New(url string, client *http.Client, conf *Config) (Notilib, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize notilib: %v", err)
 	}
-
-	notilib := &notilib{
-		listener: listener,
-		conf:     conf,
-		url:      url,
-		client:   &http.Client{},
-		msgCh:    msgChan,
-		errCh:    errCh,
-	}
-
-	return notilib, nil
+	return listener, err
 }
 
 func (n *notilib) Notify(messages []string) (string, error) {
-	log.Debugf("queuing new messages: %s", messages)
-	guid, err := uuid.NewV4()
-	if err != nil {
-		return "", fmt.Errorf("unable to create an GUID: %v", err)
-	}
-
-	// queueing messages into the channel to be later dispatched
-	go func() {
-		for idx, msg := range messages {
-			// just queue those messages with content
-			if len(msg) > 0 {
-				n.msgCh <- message{
-					content:     msg,
-					guid:        guid.String(),
-					index:       idx,
-					numRetrials: 0,
-				}
-			}
-		}
-	}()
-	return guid.String(), nil
+	return n.notifier.notify(messages)
 }
 
 func (n *notilib) Retry(msg, guid string, index, numRetrials int) {
-	n.msgCh <- message{
-		content:     msg,
-		guid:        guid,
-		index:       index,
-		numRetrials: numRetrials,
-	}
+	n.retrialer.retry(msg, guid, index, numRetrials)
 }
 
-func (n *notilib) StartService() {
+func (n *notilib) Listen() {
 	go n.listener.listen()
 }
 
-func (n *notilib) GetMessageChannelLength() int {
-	return len(n.msgCh)
-}
-
-func (n *notilib) GetErrorChannel() <-chan NError { // returns receive-only channel of NError
+func (n *notilib) GetErrorChannel() <-chan NError {
 	return n.errCh
 }
 

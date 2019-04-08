@@ -4,3 +4,5 @@ package notilib
 var NewListener = newListener
 var NewClientHandler = newClientHandler
 var NewSender = newSender
+
+// var NewGUID = newGUID

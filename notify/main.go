@@ -55,7 +55,7 @@ func main() {
 	// start the error handler responsible for retrials
 	go initErrorHandler()
 
-	notilib.StartService()
+	notilib.Listen()
 
 	// process messages each 'interval'
 	tick := time.Tick(conf.interval)

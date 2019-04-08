@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type listener interface {
+type Listener interface {
 	listen()
 }
 
@@ -16,7 +16,7 @@ type requestHandler struct {
 	sender     sender
 }
 
-func newListener(r time.Duration, b int, ch chan message, s sender) (listener, error) {
+func newListener(r time.Duration, b int, ch chan message, s sender) (Listener, error) {
 	if ch == nil {
 		return nil, fmt.Errorf("message channel can not be nil")
 	}
