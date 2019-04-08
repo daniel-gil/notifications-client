@@ -72,6 +72,7 @@ func init() {
 	initSignalsHandler()
 }
 
+// listen to the stdin capturing all the messages and inserting them into the Stdin Channel
 func listen(r io.Reader, chanCap int) <-chan string {
 	ch := make(chan string, chanCap)
 
