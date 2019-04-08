@@ -1,5 +1,6 @@
 #  Notify
 
+`notify` is a program that reads notifications (messages) from the standard input (stdin) and sends them to the URL provided as a flag. It uses the `notilib` library to handle the communication with the server.
 
 ![Notify executable](../images/notify.jpg)
 
