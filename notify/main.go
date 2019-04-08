@@ -45,15 +45,14 @@ func main() {
 	ch := listen(os.Stdin, conf.channelCapacity)
 
 	// create a notilib instance using the default configuration (passing nil as the second parameter)
-	client := &http.Client{}
-	notilib, err = nl.New(conf.url, client, nil)
+	notilib, err = nl.New(conf.url, http.DefaultClient, nil)
 	if err != nil {
 		log.Errorf("unable to start the client: %v", err)
 		return
 	}
 
 	// start the error handler responsible for retrials
-	go initErrorHandler()
+	initErrorHandler()
 
 	notilib.Listen()
 
@@ -205,18 +204,20 @@ func initLogger() {
 
 func initErrorHandler() {
 	errCh := notilib.GetErrorChannel()
-	for {
-		select {
-		case e := <-errCh:
-			log.Errorf("Handling new error: [%s] for message: { GUID : \"%s\", Index : %v, Content : \"%s\" }", e.Error, e.GUID, e.Index, e.Message)
 
-			if e.NumRetrials <= conf.maxNumRetrials {
-				// retry to send this failed notification
-				log.Warnf("Retrial[%v]: { GUID : \"%s\", Index : %v, Content : \"%s\" }", e.NumRetrials, e.GUID, e.Index, e.Message)
-				notilib.Retry(e.Message, e.GUID, e.Index, e.NumRetrials)
+	go func(errCh <-chan nl.NError) {
+		for {
+			select {
+			case e := <-errCh:
+				log.Errorf("Handling new error: [%s] for message: { GUID : \"%s\", Index : %v, Content : \"%s\" }", e.Error, e.GUID, e.Index, e.Message)
+
+				if e.NumRetrials < conf.maxNumRetrials {
+					// retry to send this failed notification
+					notilib.Retry(e.Message, e.GUID, e.Index, e.NumRetrials)
+				}
 			}
 		}
-	}
+	}(errCh)
 }
 
 func (c config) String() string {

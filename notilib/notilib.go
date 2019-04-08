@@ -9,6 +9,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const defaultMsgChCap = 1000
+const defaultMaxErrChCap = 500
+const defaultBurstLimit = 1000
+const defaultNumMessagesPerSecond = 1000
+
 // Notilib interface exposes the public methods of the library
 type Notilib interface {
 	// Listen start the service that reads from the Message Channel and send them to the URL
@@ -31,12 +36,6 @@ type notilib struct {
 	retrialer Retrialer
 }
 
-const defaultMaxChCap = 1000
-const defaultMaxErrChCap = 500
-const defaultBurstLimit = 1000
-const defaultNumMessagesPerSecond = 1000
-const defaultReqChanCapacity = 100
-
 // New creates a new object that implements Notilib interface
 func New(url string, client *http.Client, conf *Config) (Notilib, error) {
 	// validate the URL format
@@ -50,7 +49,7 @@ func New(url string, client *http.Client, conf *Config) (Notilib, error) {
 	log.Debugf("Notifier configuration: \n%v\n", conf)
 
 	// create channels
-	msgChan := make(chan message, conf.MaxChCap)
+	msgChan := make(chan message, conf.MsgChanCap)
 	errCh := make(chan NError, conf.MaxErrChCap)
 
 	// create a listener
@@ -146,8 +145,7 @@ func buildDefaultConfiguration() *Config {
 	return &Config{
 		BurstLimit:           defaultBurstLimit,
 		NumMessagesPerSecond: defaultNumMessagesPerSecond,
-		MaxChCap:             defaultMaxChCap,
+		MsgChanCap:           defaultMsgChCap,
 		MaxErrChCap:          defaultMaxErrChCap,
-		ReqChanCapacity:      defaultReqChanCapacity,
 	}
 }

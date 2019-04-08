@@ -2,6 +2,8 @@ package notilib
 
 import (
 	"fmt"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Retrialer interface {
@@ -22,10 +24,14 @@ func newRetrialer(msgChan chan message) (Retrialer, error) {
 }
 
 func (r *retrialer) retry(content, guid string, index, numRetrials int) {
+	// update the number of retrials
+	retrials := numRetrials + 1
+
 	r.msgCh <- message{
 		content:     content,
 		guid:        guid,
 		index:       index,
-		numRetrials: numRetrials,
+		numRetrials: retrials,
 	}
+	log.Warnf("Retrial[%v]: { GUID : \"%s\", Index : %v, Content : \"%s\" }", retrials, guid, index, content)
 }

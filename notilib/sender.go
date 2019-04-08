@@ -53,6 +53,6 @@ func (f *senderHandler) reportError(msg message, err error) {
 		Index:       msg.index,
 		Error:       err.Error(),
 		Message:     msg.content,
-		NumRetrials: msg.numRetrials + 1,
+		NumRetrials: msg.numRetrials,
 	}
 }

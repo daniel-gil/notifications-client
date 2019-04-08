@@ -1,32 +1,9 @@
 # Go Test Task `Notifier`
 
-## Notify: The executable
+This go challenge has 2 components: 
 
-### Installation
-
-``` bash
-$ cd notify
-$ go install
-```
-
-### Help
-``` bash
-$ notify
-usage: notify --url=URL [<flags>]
-
-Flags:
-        --help                  Shows context-sensitive help
-        -i, --interval=5s       Notification interval
-```
+- The library `notilib` described in more detail [here](./notilib/README.md).
+- The executable `notify` that uses the library `notilib` for sending notifications from the stdin. More details [here](./notify/README.md).
 
 
-``` bash
-$ notify --help
-Usage of notify:
-  -i duration
-        Notification interval (shorthand) (default 5s)
-  -interval duration
-        Notification interval (default 5s)
-  -url string
-        URL where to send notifications
-```
+Moreover, we added a test server for receiving the notifications. More details [here](./server/README.md).
