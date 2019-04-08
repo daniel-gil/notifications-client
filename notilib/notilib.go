@@ -13,6 +13,7 @@ const defaultMsgChCap = 1000
 const defaultMaxErrChCap = 500
 const defaultBurstLimit = 1000
 const defaultNumMessagesPerSecond = 1000
+const defaultLogLevel = log.InfoLevel
 
 // Notilib interface exposes the public methods of the library
 type Notilib interface {
@@ -38,19 +39,23 @@ type notilib struct {
 
 // New creates a new object that implements Notilib interface
 func New(url string, client *http.Client, conf *Config) (Notilib, error) {
+
+	// if no configuration is provided, build a default configuration
+	conf = getConfiguration(conf)
+
+	// logrus configuration
+	initLogger(conf.LogLevel)
+	log.Debugf("Notifier configuration: \n%v\n", conf)
+
 	// validate the URL format
 	err := checkURLFormat(url)
 	if err != nil {
 		return nil, err
 	}
 
-	// if no configuration is provided, build a default configuration
-	conf = getConfiguration(conf)
-	log.Debugf("Notifier configuration: \n%v\n", conf)
-
 	// create channels
 	msgChan := make(chan message, conf.MsgChanCap)
-	errCh := make(chan NError, conf.MaxErrChCap)
+	errCh := make(chan NError, conf.ErrChanCap)
 
 	// create a listener
 	listener, err := buildListener(url, conf, client, msgChan, errCh)
@@ -121,17 +126,12 @@ func checkURLFormat(url string) error {
 	return nil
 }
 
-func init() {
-	// logrus configuration
-	initLogger()
-}
-
-func initLogger() {
+func initLogger(logLevel log.Level) {
 	formatter := &log.TextFormatter{
 		FullTimestamp: true,
 	}
 	log.SetFormatter(formatter)
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(logLevel)
 }
 
 func getConfiguration(conf *Config) *Config {
@@ -146,6 +146,7 @@ func buildDefaultConfiguration() *Config {
 		BurstLimit:           defaultBurstLimit,
 		NumMessagesPerSecond: defaultNumMessagesPerSecond,
 		MsgChanCap:           defaultMsgChCap,
-		MaxErrChCap:          defaultMaxErrChCap,
+		ErrChanCap:           defaultMaxErrChCap,
+		LogLevel:             defaultLogLevel,
 	}
 }

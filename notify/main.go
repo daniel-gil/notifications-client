@@ -117,7 +117,7 @@ func processMessages(ch <-chan string) {
 		if err != nil {
 			log.Errorf("notifier client has reported a failure: %v", err)
 		}
-		log.Infof("messages notified: GUID=%s", guid)
+		log.Infof("messages received: GUID=%s", guid)
 	}
 }
 

@@ -19,13 +19,36 @@ First we need to contruct a `notilib` entity using the `New` method:
 func New(url string, client *http.Client, conf *Config) (Notilib, error) 
 ```
 
+where `client` is an optional parameter, by default `http.DefaultClient`.
+
+`conf` is also an optional parameter. These are its fields:
+```go
+type Config struct {
+	BurstLimit           int       // Burst limit for the listener, allowing to process several messages from the Message Channel per rate
+	NumMessagesPerSecond int       // Maximal number of messages to be processed per second (it will be used to calculate the rate for the rate limiter)
+	MsgChanCap           int       // Message Channel Capacity
+	ErrChanCap           int       // Error Channel Capacity
+	LogLevel             log.Level // log level for logrus
+}
+```
+
+and these are its default values:
+```go
+const defaultMsgChCap = 1000
+const defaultMaxErrChCap = 500
+const defaultBurstLimit = 1000
+const defaultNumMessagesPerSecond = 1000
+const defaultLogLevel = log.InfoLevel
+```
+
 Here is an example:
 ```go
 conf := &Config{ 
     MsgChanCap: 100, 
-    MaxErrChCap: 2, 
-    BurstLimit: 50, 
+    ErrChanCap: 2, 
+    LogLevel: log.DebugLevel,
     NumMessagesPerSecond: 10,
+    BurstLimit: 50, 
 }
 
 client := &http.Client{
@@ -38,13 +61,7 @@ if err != nil {
     return
 }
 ```
-where `client` is an optional parameter, by default `http.DefaultClient`; `conf` is also optional and those are the default values:
-```go
-const defaultMsgChCap = 1000
-const defaultMaxErrChCap = 500
-const defaultBurstLimit = 1000
-const defaultNumMessagesPerSecond = 1000
-```
+
 
 ### Start service
 
@@ -137,3 +154,53 @@ The `retrialer` is responsible for inserting the `message` struct of a failed no
 
 
 ## Testing
+
+```bash
+$ cd notilib
+$ go test -v
+=== RUN   TestDispatch
+=== RUN   TestDispatch/Positive_TC
+--- PASS: TestDispatch (0.00s)
+    --- PASS: TestDispatch/Positive_TC (0.00s)
+=== RUN   TestListen
+=== RUN   TestListen/Positive_TC
+=== RUN   TestListen/Negative_TC:_nil_request_channel
+=== RUN   TestListen/Negative_TC:_nil_sender
+--- PASS: TestListen (2.00s)
+    --- PASS: TestListen/Positive_TC (2.00s)
+    --- PASS: TestListen/Negative_TC:_nil_request_channel (0.00s)
+    --- PASS: TestListen/Negative_TC:_nil_sender (0.00s)
+=== RUN   TestNotify
+=== RUN   TestNotify/Positive_TC
+=== RUN   TestNotify/Nil_message_channel
+--- PASS: TestNotify (1.00s)
+    --- PASS: TestNotify/Positive_TC (1.00s)
+    --- PASS: TestNotify/Nil_message_channel (0.00s)
+=== RUN   TestNew
+=== RUN   TestNew/Positive_TC:_default_config
+=== RUN   TestNew/Positive_TC:_custom_config
+=== RUN   TestNew/Missing_URL
+=== RUN   TestNew/Invalid_URL
+--- PASS: TestNew (0.00s)
+    --- PASS: TestNew/Positive_TC:_default_config (0.00s)
+    --- PASS: TestNew/Positive_TC:_custom_config (0.00s)
+    --- PASS: TestNew/Missing_URL (0.00s)
+    --- PASS: TestNew/Invalid_URL (0.00s)
+=== RUN   TestRetry
+=== RUN   TestRetry/Positive_TC
+WARN[2019-04-08T16:45:25+02:00] Retrial[2]: { GUID : "1234", Index : 4, Content : "hello world" } 
+=== RUN   TestRetry/Nil_message_channel
+--- PASS: TestRetry (1.00s)
+    --- PASS: TestRetry/Positive_TC (1.00s)
+    --- PASS: TestRetry/Nil_message_channel (0.00s)
+=== RUN   TestSend
+=== RUN   TestSend/Positive_TC
+=== RUN   TestSend/Negative_TC:_context_done_before_send
+=== RUN   TestSend/Negative_TC:_context_done_after_send
+--- PASS: TestSend (6.01s)
+    --- PASS: TestSend/Positive_TC (2.00s)
+    --- PASS: TestSend/Negative_TC:_context_done_before_send (2.00s)
+    --- PASS: TestSend/Negative_TC:_context_done_after_send (2.00s)
+PASS
+ok      github.com/daniel-gil/notifications-client/notilib      10.032s 
+```

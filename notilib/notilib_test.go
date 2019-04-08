@@ -8,7 +8,7 @@ import (
 func TestNew(t *testing.T) {
 	conf := &Config{
 		MsgChanCap:             1,
-		MaxErrChCap:          2,
+		ErrChanCap:          2,
 		BurstLimit:           3,
 		NumMessagesPerSecond: 4,
 	}
