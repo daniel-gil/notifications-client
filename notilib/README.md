@@ -1,6 +1,6 @@
 # notilib
 
-`notilib` is a library that implements an HTTP notification client. Once configured the URL in the constructor, all notifications are sent there.
+`notilib` is a library that implements an HTTP notification client. Once configured the URL in the constructor, all notifications will be sent there.
 
 The client of this library uses the method `Notify` for adding new messages to be sent, they are first buffered in the `Message Channel` before being sent to the URL. It is an asynchronous operation so the client will not wait until the message is sent.
 
@@ -35,7 +35,7 @@ type Config struct {
 and these are its default values:
 ```go
 const defaultMsgChCap = 1000
-const defaultMaxErrChCap = 500
+const defaultErrChCap = 500
 const defaultBurstLimit = 1000
 const defaultNumMessagesPerSecond = 1000
 const defaultLogLevel = log.InfoLevel

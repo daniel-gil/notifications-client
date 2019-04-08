@@ -16,6 +16,16 @@ type Config struct {
 	LogLevel             log.Level // log level for logrus
 }
 
+func DefaultConfig() *Config {
+	return &Config{
+		BurstLimit:           defaultBurstLimit,
+		NumMessagesPerSecond: defaultNumMessagesPerSecond,
+		MsgChanCap:           defaultMsgChCap,
+		ErrChanCap:           defaultErrChCap,
+		LogLevel:             defaultLogLevel,
+	}
+}
+
 func (c Config) String() string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("{\n"))

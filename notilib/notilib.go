@@ -10,7 +10,7 @@ import (
 )
 
 const defaultMsgChCap = 1000
-const defaultMaxErrChCap = 500
+const defaultErrChCap = 500
 const defaultBurstLimit = 1000
 const defaultNumMessagesPerSecond = 1000
 const defaultLogLevel = log.InfoLevel
@@ -45,7 +45,7 @@ func New(url string, client *http.Client, conf *Config) (Notilib, error) {
 
 	// logrus configuration
 	initLogger(conf.LogLevel)
-	log.Debugf("Notifier configuration: \n%v\n", conf)
+	log.Debugf("Notilib configuration: \n%v\n", conf)
 
 	// validate the URL format
 	err := checkURLFormat(url)
@@ -136,17 +136,19 @@ func initLogger(logLevel log.Level) {
 
 func getConfiguration(conf *Config) *Config {
 	if conf == nil {
-		conf = buildDefaultConfiguration()
+		return DefaultConfig()
+	}
+	if conf.BurstLimit < 0 {
+		conf.BurstLimit = defaultBurstLimit
+	}
+	if conf.MsgChanCap < 0 {
+		conf.MsgChanCap = defaultMsgChCap
+	}
+	if conf.ErrChanCap < 0 {
+		conf.ErrChanCap = defaultErrChCap
+	}
+	if conf.NumMessagesPerSecond < 0 {
+		conf.NumMessagesPerSecond = defaultNumMessagesPerSecond
 	}
 	return conf
-}
-
-func buildDefaultConfiguration() *Config {
-	return &Config{
-		BurstLimit:           defaultBurstLimit,
-		NumMessagesPerSecond: defaultNumMessagesPerSecond,
-		MsgChanCap:           defaultMsgChCap,
-		ErrChanCap:           defaultMaxErrChCap,
-		LogLevel:             defaultLogLevel,
-	}
 }

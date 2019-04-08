@@ -20,6 +20,7 @@ const defaultInterval = 5 * time.Second
 const defaultChannelCapacity = 500
 const defaultMaxNumRetrials = 2
 const defaultMaxNumMessagesToProcess = 100
+const defaultLogLevel = log.InfoLevel
 
 var notilib nl.Notilib
 var conf *config
@@ -30,6 +31,7 @@ type config struct {
 	channelCapacity         int
 	maxNumRetrials          int
 	maxNumMessagesToProcess int
+	logLevel                log.Level
 }
 
 func main() {
@@ -38,14 +40,20 @@ func main() {
 	if err != nil {
 		return
 	}
-	log.Infof("HTTP Notification client started")
-	log.Debugf("Listening for new messages using the following configuration: \n%v\n", conf)
+
+	// init logger and configure signals notifications (SIGINT)
+	setup(conf.logLevel)
+
+	log.Infof("HTTP Notification client started. Listening for new messages from stdin...")
+	log.Debugf("Notify configuration: \n%v\n", conf)
 
 	// create a goroutine dedicated to read lines from stdin and send them to a channel to be processed later (each interval)
 	ch := listen(os.Stdin, conf.channelCapacity)
 
 	// create a notilib instance using the default configuration (passing nil as the second parameter)
-	notilib, err = nl.New(conf.url, http.DefaultClient, nil)
+	config := nl.DefaultConfig()
+	config.LogLevel = conf.logLevel
+	notilib, err = nl.New(conf.url, http.DefaultClient, config)
 	if err != nil {
 		log.Errorf("unable to start the client: %v", err)
 		return
@@ -64,9 +72,9 @@ func main() {
 	}
 }
 
-func init() {
+func setup(logLevel log.Level) {
 	// logrus configuration
-	initLogger()
+	initLogger(logLevel)
 
 	// configuration to handle the SIGINT termination signal
 	initSignalsHandler()
@@ -130,6 +138,7 @@ func parseFlags() error {
 		channelCapacityFlagUsage         = "Channel capacity for reading from stdin"
 		maxNumRetrialsFlagUsage          = "Maximal number of retrials when receives an error sending a notification"
 		maxNumMessagesToProcessFlagUsage = "Maximal number of messages to be processed per interval"
+		logLevelFlagUsage                = "Log level. Valid values: trace, debug, info, warn, error, panic, fatal"
 	)
 
 	// display a usage text if no parameters
@@ -138,10 +147,11 @@ func parseFlags() error {
 		fmt.Printf("\n")
 		fmt.Printf("Flags:\n")
 		fmt.Printf("	--help			Shows context-sensitive help\n")
-		fmt.Printf("	-i, --interval=5s	%s\n", intervalFlagUsage)
-		fmt.Printf("	-c, --chcap=500		%s\n", channelCapacityFlagUsage)
-		fmt.Printf("	-r, --retrials=2	%s\n", maxNumRetrialsFlagUsage)
-		fmt.Printf("	-m, --messages=100	%s\n", maxNumMessagesToProcessFlagUsage)
+		fmt.Printf("	-i, --interval=%v	%s\n", defaultInterval, intervalFlagUsage)
+		fmt.Printf("	-c, --chcap=%d		%s\n", defaultChannelCapacity, channelCapacityFlagUsage)
+		fmt.Printf("	-r, --retrials=%d	%s\n", defaultMaxNumRetrials, maxNumRetrialsFlagUsage)
+		fmt.Printf("	-m, --messages=%d	%s\n", defaultMaxNumMessagesToProcess, maxNumMessagesToProcessFlagUsage)
+		fmt.Printf("	-l, --loglevel=%s	%s\n", defaultLogLevel, logLevelFlagUsage)
 		return fmt.Errorf("wrong usage")
 	}
 
@@ -165,8 +175,32 @@ func parseFlags() error {
 	flag.IntVar(&conf.maxNumMessagesToProcess, "messages", defaultMaxNumMessagesToProcess, maxNumMessagesToProcessFlagUsage)
 	flag.IntVar(&conf.maxNumMessagesToProcess, "m", defaultMaxNumMessagesToProcess, maxNumMessagesToProcessFlagUsage+" (shorthand)")
 
+	// define the log level flag (admits also the short alternative form)
+	logLevelStr := ""
+	flag.StringVar(&logLevelStr, "loglevel", "", logLevelFlagUsage)
+	flag.StringVar(&logLevelStr, "l", "", logLevelFlagUsage+" (shorthand)")
+
 	// parse the flags previously defined
 	flag.Parse()
+
+	switch logLevelStr {
+	case "trace":
+		conf.logLevel = log.TraceLevel
+	case "debug":
+		conf.logLevel = log.DebugLevel
+	case "info":
+		conf.logLevel = log.InfoLevel
+	case "warn":
+		conf.logLevel = log.WarnLevel
+	case "error":
+		conf.logLevel = log.ErrorLevel
+	case "panic":
+		conf.logLevel = log.PanicLevel
+	case "fatal":
+		conf.logLevel = log.FatalLevel
+	default:
+		conf.logLevel = defaultLogLevel
+	}
 
 	// check that we received all mandatory parameters
 	if conf.url == "" {
@@ -195,12 +229,12 @@ func initSignalsHandler() {
 	}()
 }
 
-func initLogger() {
+func initLogger(logLevel log.Level) {
 	formatter := &log.TextFormatter{
 		FullTimestamp: true,
 	}
 	log.SetFormatter(formatter)
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(logLevel)
 }
 
 func initErrorHandler() {
