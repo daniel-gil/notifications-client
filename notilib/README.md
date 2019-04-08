@@ -81,43 +81,6 @@ if err != nil {
 ```
 this returns a `GUID` assigned to all the messages and useful to track errors from the `Error Channel`, this ID has this format `0e527ed5-45a3-4c48-8b96-6fdc709da90d`.
 
-### Handle errors
-The client of notilib can handle the errors retrieving first the `Error Channel`:
-
-```go
-errCh := notilib.GetErrorChannel()
-```
-
-The value type used in `Error Channel` is `NError` with those fields:
-```go 
-type NError struct {
-	Error       string // Error message
-	Message     string // Original failed notification
-	NumRetrials int    // Number of retrials
-	GUID        string // Unique identifier
-	Index       int    // Index of the failed message from the []string passed as parameter to the notilib.Notify method
-}
-```
-
-Once the client have access to the `Error Channel`,  it can create a goroutine that stays blocked just listening for new errors:
-```go
-go func(errCh <-chan nl.NError) {
-    for {
-        select {
-        case e := <-errCh:
-            if e.NumRetrials <= maxNumRetrials {
-                // retry to send this failed notification
-                notilib.Retry(e.Message, e.GUID, e.Index, e.NumRetrials)
-            }
-        }
-    }
-}(errCh)
-```
-
-
-When a new error is received, depending on the current number of retrials, the client can retry sending the same failed message using the method `notilib.Retry`.
-
-
 ## Components
 
 ### Notifier

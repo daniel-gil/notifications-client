@@ -135,7 +135,7 @@ func parseFlags() error {
 	const (
 		urlFlagUsage                     = "URL where to send notifications"
 		intervalFlagUsage                = "Notification interval"
-		channelCapacityFlagUsage         = "Channel capacity for reading from stdin"
+		channelCapacityFlagUsage         = "Stdin Channel capacity for reading messages from stdin"
 		maxNumRetrialsFlagUsage          = "Maximal number of retrials when receives an error sending a notification"
 		maxNumMessagesToProcessFlagUsage = "Maximal number of messages to be processed per interval"
 		logLevelFlagUsage                = "Log level. Valid values: trace, debug, info, warn, error, panic, fatal"
