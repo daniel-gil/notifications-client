@@ -8,7 +8,7 @@ At a predefined interval, the library reads the content of the `Message Channel`
 
 Notilib exposes the `Error Channel` for reporting those messages that has failed and give the oportunity to the client to handle those errors. One mechanism could be retry sending the message, for this purpose the `Retry` method is available.
 
-![Notifier diagram](../images/notifier.png)
+![Notifier diagram](../images/notilib.jpg)
 
 ## Usage
 
