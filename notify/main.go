@@ -112,7 +112,10 @@ func processMessages(ch <-chan string) {
 
 	messages := []string{}
 	for i := 0; i < numMsgs; i++ {
-		msg := <-ch
+		msg, ok := <-ch
+		if !ok {
+			log.Fatal("Stdin Channel is closed unexpectedly")
+		}
 		if len(msg) > 0 {
 			messages = append(messages, msg)
 		}
@@ -243,7 +246,10 @@ func initErrorHandler() {
 	go func(errCh <-chan nl.NError) {
 		for {
 			select {
-			case e := <-errCh:
+			case e, ok := <-errCh:
+				if !ok {
+					log.Fatalf("Error Channel is closed unexpectedly")
+				}
 				log.Errorf("Handling new error: [%s] for message: { GUID : \"%s\", Index : %v, Content : \"%s\" }", e.Error, e.GUID, e.Index, e.Message)
 
 				if e.NumRetrials < conf.maxNumRetrials {
