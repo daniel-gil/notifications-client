@@ -1,6 +1,7 @@
 package notilib
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	neturl "net/url"
@@ -18,7 +19,7 @@ const defaultLogLevel = log.InfoLevel
 // Notilib interface exposes the public methods of the library
 type Notilib interface {
 	// Listen start the service that reads from the Message Channel and send them to the URL
-	Listen()
+	Listen(ctx context.Context)
 
 	// Notify queues the messages into the Message Channel
 	Notify(messages []string) (string, error)
@@ -107,8 +108,8 @@ func (n *notilib) Retry(msg, guid string, index, numRetrials int) {
 	n.retrialer.retry(msg, guid, index, numRetrials)
 }
 
-func (n *notilib) Listen() {
-	go n.listener.listen()
+func (n *notilib) Listen(ctx context.Context) {
+	go n.listener.listen(ctx)
 }
 
 func (n *notilib) GetErrorChannel() <-chan NError {

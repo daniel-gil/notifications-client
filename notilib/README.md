@@ -67,8 +67,11 @@ if err != nil {
 
 Once we have the `notilib` instance, we are ready to listen to the `Message Channel` for new incoming notifications to be forwarded:
 ```go
-notilib.Listen()
+ctx := context.Background()
+ctx, cancel := context.WithCancel(ctx)
+notilib.Listen(ctx)
 ```
+where `ctx` is the context used for cancellation propagation.
 
 ### Send notifications
 

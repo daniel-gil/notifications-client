@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -41,8 +42,11 @@ func main() {
 		return
 	}
 
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+
 	// init logger and configure signals notifications (SIGINT)
-	setup(conf.logLevel)
+	setup(conf.logLevel, cancel)
 
 	log.Infof("HTTP Notification client started. Listening for new messages from stdin...")
 	log.Debugf("Notify configuration: \n%v\n", conf)
@@ -62,7 +66,7 @@ func main() {
 	// start the error handler responsible for retrials
 	initErrorHandler()
 
-	notilib.Listen()
+	notilib.Listen(ctx)
 
 	// process messages each 'interval'
 	tick := time.Tick(conf.interval)
@@ -72,12 +76,12 @@ func main() {
 	}
 }
 
-func setup(logLevel log.Level) {
+func setup(logLevel log.Level, cancel context.CancelFunc) {
 	// logrus configuration
 	initLogger(logLevel)
 
 	// configuration to handle the SIGINT termination signal
-	initSignalsHandler()
+	initSignalsHandler(cancel)
 }
 
 // listen to the stdin capturing all the messages and inserting them into the Stdin Channel
@@ -213,7 +217,7 @@ func parseFlags() error {
 	return nil
 }
 
-func initSignalsHandler() {
+func initSignalsHandler(cancel context.CancelFunc) {
 	//  create a channel to receive OS signal notifications
 	sigs := make(chan os.Signal, 1)
 
@@ -221,15 +225,15 @@ func initSignalsHandler() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	// start a goroutine to handle the termination signal
-	go func() {
+	go func(cancel context.CancelFunc) {
 		for {
 			// remains blocked here until a termination signal is received and read from the channel
 			sig := <-sigs
-
+			cancel()
 			log.Printf("Signal caught: %+v\nExit program\n", sig)
 			os.Exit(0)
 		}
-	}()
+	}(cancel)
 }
 
 func initLogger(logLevel log.Level) {

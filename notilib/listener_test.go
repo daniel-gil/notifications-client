@@ -1,6 +1,7 @@
 package notilib
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -50,7 +51,7 @@ func TestListen(t *testing.T) {
 
 			listener, err := NewListener(1*time.Second, 10, channel, mockSender)
 			if !checkError(tc.errMsg, err, t) {
-				go listener.listen()
+				go listener.listen(context.Background())
 
 				// give some time to call send method
 				time.Sleep(2 * time.Second)

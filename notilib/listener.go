@@ -1,12 +1,15 @@
 package notilib
 
 import (
+	"context"
 	"fmt"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Listener interface {
-	listen()
+	listen(ctx context.Context)
 }
 
 type requestHandler struct {
@@ -32,7 +35,7 @@ func newListener(r time.Duration, b int, ch chan message, s sender) (Listener, e
 }
 
 // listen waits for receiving new notifications from the request channel and processes them
-func (l *requestHandler) listen() {
+func (l *requestHandler) listen(ctx context.Context) {
 	tick := time.NewTicker(l.rate)
 	defer tick.Stop()
 	throttle := make(chan time.Time, l.burstLimit)
@@ -40,12 +43,19 @@ func (l *requestHandler) listen() {
 		for t := range tick.C {
 			select {
 			case throttle <- t:
-			default:
+			case <-ctx.Done():
+				log.Infof("Tick generator: %v", ctx.Err())
+				return
 			}
 		}
 	}()
-	for msg := range l.msgChan {
+
+	select {
+	case msg := <-l.msgChan:
 		<-throttle
 		go l.sender.send(msg)
+	case <-ctx.Done():
+		log.Infof("listen: %v", ctx.Err())
+		return
 	}
 }
