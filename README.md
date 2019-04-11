@@ -1,4 +1,4 @@
-# Go Test Task `Notifier`
+# Go Test Task `Notifier` [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 HTTP notification client implemented in Golang for sending messages read from the stdin and forward them to the URL configured via an HTTP POST method.
 
