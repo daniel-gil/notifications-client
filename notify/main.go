@@ -255,11 +255,11 @@ func initErrorHandler() {
 				if !ok {
 					log.Fatalf("Error Channel is closed unexpectedly")
 				}
-				log.Errorf("Handling new error: [%s] for message: { GUID : \"%s\", Index : %d, Content : \"%s\" }", e.Error, e.GUID, e.Index, e.Message)
+				log.Errorf("Handling new error: [%v]", e.Error())
 
 				if e.NumRetrials < conf.maxNumRetrials {
 					// retry to send this failed notification
-					notilib.Retry(e.Message, e.GUID, e.Index, e.NumRetrials)
+					notilib.Retry(e.Content, e.GUID, e.Index, e.NumRetrials)
 				}
 			}
 		}

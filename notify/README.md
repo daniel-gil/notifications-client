@@ -127,11 +127,11 @@ errCh := notilib.GetErrorChannel()
 The value type used in `Error Channel` is `NError` with those fields:
 ```go 
 type NError struct {
-	Error       string // Error message
-	Message     string // Original failed notification
-	NumRetrials int    // Number of retrials
-	GUID        string // Unique identifier
-	Index       int    // Index of the failed message from the []string passed as parameter to the notilib.Notify method
+	ErrorMessage string // Error message
+	Content      string // Original failed notification
+	NumRetrials  int    // Number of retrials
+	GUID         string // GUID: Unique identifier
+	Index        int    // Index of the message from the []string passed as parameter to the notilib.Notify method
 }
 ```
 
@@ -143,7 +143,7 @@ go func(errCh <-chan nl.NError) {
         case e := <-errCh:
             if e.NumRetrials <= maxNumRetrials {
                 // retry to send this failed notification
-                notilib.Retry(e.Message, e.GUID, e.Index, e.NumRetrials)
+                notilib.Retry(e.Content, e.GUID, e.Index, e.NumRetrials)
             }
         }
     }

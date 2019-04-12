@@ -49,10 +49,10 @@ func (f *senderHandler) send(msg message) {
 
 func (f *senderHandler) reportError(msg message, err error) {
 	f.errCh <- NError{
-		GUID:        msg.guid,
-		Index:       msg.index,
-		Error:       err.Error(),
-		Message:     msg.content,
-		NumRetrials: msg.numRetrials,
+		GUID:         msg.guid,
+		Index:        msg.index,
+		ErrorMessage: err.Error(),
+		Content:      msg.content,
+		NumRetrials:  msg.numRetrials,
 	}
 }
