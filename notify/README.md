@@ -28,6 +28,7 @@ Flags:
         -c, --chcap=500         Channel capacity for reading from stdin
         -r, --retrials=2        Maximal number of retrials when receives an error sending a notification
         -m, --messages=100      Maximal number of messages to be processed per interval
+        -l, --loglevel=info     Log level. Valid values: trace, debug, info, warn, error, panic, fatal        
 ```
 
 We can also use the `--help` flag to obtain more help:
@@ -43,6 +44,10 @@ Usage of notify:
         Notification interval (shorthand) (default 5s)
   -interval duration
         Notification interval (default 5s)
+  -l string
+        Log level. Valid values: trace, debug, info, warn, error, panic, fatal (shorthand)
+  -loglevel string
+        Log level. Valid values: trace, debug, info, warn, error, panic, fatal        
   -m int
         Maximal number of messages to be processed per interval (shorthand) (default 100)
   -messages int
