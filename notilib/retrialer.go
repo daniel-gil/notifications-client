@@ -33,5 +33,5 @@ func (r *retrialer) retry(content, guid string, index, numRetrials int) {
 		index:       index,
 		numRetrials: retrials,
 	}
-	log.Warnf("Retrial[%v]: { GUID : \"%s\", Index : %v, Content : \"%s\" }", retrials, guid, index, content)
+	log.Warnf("Retrial[%d]: { GUID : \"%s\", Index : %d, Content : \"%s\" }", retrials, guid, index, content)
 }

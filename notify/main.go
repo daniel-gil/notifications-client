@@ -107,7 +107,7 @@ func listen(r io.Reader, chanCap int) <-chan string {
 
 func processMessages(ch <-chan string) {
 	numMsgs := len(ch)
-	log.Debugf("new tick. Num messages in channel: %v", numMsgs)
+	log.Debugf("new tick. Num messages in channel: %d", numMsgs)
 
 	// control the maximal amount of messages to be procesed each interval
 	if numMsgs > conf.maxNumMessagesToProcess {
@@ -132,6 +132,7 @@ func processMessages(ch <-chan string) {
 		guid, err := notilib.Notify(messages)
 		if err != nil {
 			log.Errorf("notifier client has reported a failure: %v", err)
+			return
 		}
 		log.Infof("messages received: GUID=%s", guid)
 	}
@@ -254,7 +255,7 @@ func initErrorHandler() {
 				if !ok {
 					log.Fatalf("Error Channel is closed unexpectedly")
 				}
-				log.Errorf("Handling new error: [%s] for message: { GUID : \"%s\", Index : %v, Content : \"%s\" }", e.Error, e.GUID, e.Index, e.Message)
+				log.Errorf("Handling new error: [%s] for message: { GUID : \"%s\", Index : %d, Content : \"%s\" }", e.Error, e.GUID, e.Index, e.Message)
 
 				if e.NumRetrials < conf.maxNumRetrials {
 					// retry to send this failed notification
@@ -270,9 +271,9 @@ func (c config) String() string {
 	sb.WriteString(fmt.Sprintf("{\n"))
 	sb.WriteString(fmt.Sprintf("  url: \"%s\",\n", c.url))
 	sb.WriteString(fmt.Sprintf("  interval: \"%v\",\n", c.interval))
-	sb.WriteString(fmt.Sprintf("  channelCapacity: %v,\n", c.channelCapacity))
-	sb.WriteString(fmt.Sprintf("  maxNumRetrials: %v,\n", c.maxNumRetrials))
-	sb.WriteString(fmt.Sprintf("  maxNumMessagesToProcess: %v,\n", c.maxNumMessagesToProcess))
+	sb.WriteString(fmt.Sprintf("  channelCapacity: %d,\n", c.channelCapacity))
+	sb.WriteString(fmt.Sprintf("  maxNumRetrials: %d,\n", c.maxNumRetrials))
+	sb.WriteString(fmt.Sprintf("  maxNumMessagesToProcess: %d,\n", c.maxNumMessagesToProcess))
 	sb.WriteString(fmt.Sprintf("}\n"))
 	return sb.String()
 }

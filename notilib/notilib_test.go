@@ -7,8 +7,8 @@ import (
 
 func TestNew(t *testing.T) {
 	conf := &Config{
-		MsgChanCap:             1,
-		ErrChanCap:          2,
+		MsgChanCap:           1,
+		ErrChanCap:           2,
 		BurstLimit:           3,
 		NumMessagesPerSecond: 4,
 	}
@@ -53,7 +53,7 @@ func checkError(errMsg string, err error, t *testing.T) bool {
 			t.Errorf("unexpected error: %v", err)
 		} else if errMsg != err.Error() {
 			// here the testcase expected another error than the received
-			t.Errorf("expected error message: %v; got: %v", errMsg, err.Error())
+			t.Errorf("expected error message: %s; got: %v", errMsg, err.Error())
 		}
 		return true
 	}

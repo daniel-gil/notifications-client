@@ -19,7 +19,7 @@ var rnd *rand.Rand
 func main() {
 	errorRatePercentage := flag.Int("error", 0, "Error rate percentage to simulate failures")
 	flag.Parse()
-	log.Printf("Server configuration: errorRatePercentage=%v%%", *errorRatePercentage)
+	log.Printf("Server configuration: errorRatePercentage=%d%%", *errorRatePercentage)
 
 	engine := gin.Default()
 

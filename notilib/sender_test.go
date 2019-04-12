@@ -52,7 +52,7 @@ func TestSend(t *testing.T) {
 					}
 					bodyString := string(bodyBytes)
 					if bodyString != tc.testData {
-						t.Errorf("expected this test data: %v; got %v", tc.testData, bodyString)
+						t.Errorf("expected this test data: %s; got %s", tc.testData, bodyString)
 					}
 					if bodyString != tc.testData {
 						t.Errorf("requet body mismatch. Expected \"%s\"; got: \"%s\"", tc.testData, bodyString)

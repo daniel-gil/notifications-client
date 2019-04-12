@@ -29,10 +29,10 @@ func DefaultConfig() *Config {
 func (c Config) String() string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("{\n"))
-	sb.WriteString(fmt.Sprintf("  BurstLimit: %v,\n", c.BurstLimit))
-	sb.WriteString(fmt.Sprintf("  NumMessagesPerSecond: %v,\n", c.NumMessagesPerSecond))
-	sb.WriteString(fmt.Sprintf("  MsgChanCap: %v,\n", c.MsgChanCap))
-	sb.WriteString(fmt.Sprintf("  ErrChanCap: %v,\n", c.ErrChanCap))
+	sb.WriteString(fmt.Sprintf("  BurstLimit: %d,\n", c.BurstLimit))
+	sb.WriteString(fmt.Sprintf("  NumMessagesPerSecond: %d,\n", c.NumMessagesPerSecond))
+	sb.WriteString(fmt.Sprintf("  MsgChanCap: %d,\n", c.MsgChanCap))
+	sb.WriteString(fmt.Sprintf("  ErrChanCap: %d,\n", c.ErrChanCap))
 	sb.WriteString(fmt.Sprintf("  LogLevel: %v,\n", c.LogLevel))
 	sb.WriteString(fmt.Sprintf("}\n"))
 	return sb.String()
