@@ -29,6 +29,7 @@ Flags:
         -r, --retrials=2        Maximal number of retrials when receives an error sending a notification
         -m, --messages=100      Maximal number of messages to be processed per interval
         -l, --loglevel=info     Log level. Valid values: trace, debug, info, warn, error, panic, fatal        
+        -t, --timeout=5s        Timeout used for flushing Stdin Channel and Message Channel on terminate the application        
 ```
 
 We can also use the `--help` flag to obtain more help:
@@ -56,6 +57,10 @@ Usage of notify:
         Maximal number of retrials when receives an error sending a notification (shorthand) (default 2)
   -retrials int
         Maximal number of retrials when receives an error sending a notification (default 2)
+  -t duration
+        Timeout used for flushing Stdin Channel and Message Channel on terminate the application (shorthand) (default 5s)
+  -timeout duration
+        Timeout used for flushing Stdin Channel and Message Channel on terminate the application (default 5s)
   -u string
         URL where to send notifications (shorthand)
   -url string
