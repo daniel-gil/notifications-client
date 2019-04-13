@@ -19,6 +19,6 @@ func newClientHandler(c httpClient) dispatcher {
 }
 
 // dispatch the http request to the client
-func (hdlr *clientHandler) dispatch(req *http.Request) (*http.Response, error) {
+func (hdlr clientHandler) dispatch(req *http.Request) (*http.Response, error) {
 	return hdlr.client.Do(req)
 }

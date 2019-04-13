@@ -22,9 +22,13 @@ const defaultChannelCapacity = 500
 const defaultMaxNumRetrials = 2
 const defaultMaxNumMessagesToProcess = 100
 const defaultLogLevel = log.InfoLevel
+const defaultTimeout = 5 * time.Second
 
 var notilib nl.Notilib
 var conf *config
+var isTerminating = false
+var stdinChan <-chan string
+var timeout time.Duration
 
 type config struct {
 	url                     string
@@ -52,7 +56,7 @@ func main() {
 	log.Debugf("Notify configuration: \n%v\n", conf)
 
 	// create a goroutine dedicated to read lines from stdin and send them to a channel to be processed later (each interval)
-	ch := listen(os.Stdin, conf.channelCapacity)
+	stdinChan = listen(os.Stdin, conf.channelCapacity, cancel)
 
 	// create a notilib instance using the default configuration (passing nil as the second parameter)
 	config := nl.DefaultConfig()
@@ -66,13 +70,17 @@ func main() {
 	// start the error handler responsible for retrials
 	initErrorHandler()
 
+	// start the notilib service
 	notilib.Listen(ctx)
 
 	// process messages each 'interval'
 	tick := time.Tick(conf.interval)
 	for {
 		<-tick
-		processMessages(ch)
+
+		if !isTerminating {
+			processMessages()
+		}
 	}
 }
 
@@ -85,10 +93,10 @@ func setup(logLevel log.Level, cancel context.CancelFunc) {
 }
 
 // listen to the stdin capturing all the messages and inserting them into the Stdin Channel
-func listen(r io.Reader, chanCap int) <-chan string {
+func listen(r io.Reader, chanCap int, cancel context.CancelFunc) <-chan string {
 	ch := make(chan string, chanCap)
 
-	go func() {
+	go func(cancel context.CancelFunc) {
 		scanner := bufio.NewScanner(r)
 		scanner.Split(bufio.ScanLines)
 
@@ -99,24 +107,27 @@ func listen(r io.Reader, chanCap int) <-chan string {
 
 		if err := scanner.Err(); err != nil {
 			log.Fatalf("failed at scanning stdin: %s", err)
+		} else {
+			log.Infof("EOF found")
+			terminate(cancel)
 		}
-	}()
+	}(cancel)
 
 	return ch
 }
 
-func processMessages(ch <-chan string) {
-	numMsgs := len(ch)
+func processMessages() {
+	numMsgs := len(stdinChan)
 	log.Debugf("new tick. Num messages in channel: %d", numMsgs)
 
 	// control the maximal amount of messages to be procesed each interval
-	if numMsgs > conf.maxNumMessagesToProcess {
+	if !isTerminating && numMsgs > conf.maxNumMessagesToProcess {
 		numMsgs = conf.maxNumMessagesToProcess
 	}
 
 	messages := []string{}
 	for i := 0; i < numMsgs; i++ {
-		msg, ok := <-ch
+		msg, ok := <-stdinChan
 		if !ok {
 			log.Fatal("Stdin Channel is closed unexpectedly")
 		}
@@ -147,6 +158,7 @@ func parseFlags() error {
 		maxNumRetrialsFlagUsage          = "Maximal number of retrials when receives an error sending a notification"
 		maxNumMessagesToProcessFlagUsage = "Maximal number of messages to be processed per interval"
 		logLevelFlagUsage                = "Log level. Valid values: trace, debug, info, warn, error, panic, fatal"
+		timeoutFlagUsage                 = "Timeout used for flushing Stdin Channel and Message Channel on terminate the application"
 	)
 
 	// display a usage text if no parameters
@@ -160,6 +172,7 @@ func parseFlags() error {
 		fmt.Printf("	-r, --retrials=%d	%s\n", defaultMaxNumRetrials, maxNumRetrialsFlagUsage)
 		fmt.Printf("	-m, --messages=%d	%s\n", defaultMaxNumMessagesToProcess, maxNumMessagesToProcessFlagUsage)
 		fmt.Printf("	-l, --loglevel=%s	%s\n", defaultLogLevel, logLevelFlagUsage)
+		fmt.Printf("	-t, --timeout=%s	%s\n", defaultTimeout, timeoutFlagUsage)
 		return fmt.Errorf("wrong usage")
 	}
 
@@ -187,6 +200,10 @@ func parseFlags() error {
 	logLevelStr := ""
 	flag.StringVar(&logLevelStr, "loglevel", "", logLevelFlagUsage)
 	flag.StringVar(&logLevelStr, "l", "", logLevelFlagUsage+" (shorthand)")
+
+	// define the timeout (admits also the short alternative form)
+	flag.DurationVar(&timeout, "timeout", defaultTimeout, timeoutFlagUsage)
+	flag.DurationVar(&timeout, "t", defaultTimeout, timeoutFlagUsage+" (shorthand)")
 
 	// parse the flags previously defined
 	flag.Parse()
@@ -230,11 +247,53 @@ func initSignalsHandler(cancel context.CancelFunc) {
 		for {
 			// remains blocked here until a termination signal is received and read from the channel
 			sig := <-sigs
-			cancel()
 			log.Printf("Signal caught: %+v\nExit program\n", sig)
-			os.Exit(0)
+			terminate(cancel)
 		}
 	}(cancel)
+}
+
+func flushStdinChannel(timeout time.Duration) <-chan bool {
+	continueChan := make(chan bool)
+
+	t := time.After(timeout)
+	go func(ch chan bool) {
+		<-t
+		log.Warn("timeout occurs flushing Stdin Channel")
+		ch <- true
+		return
+	}(continueChan)
+
+	go func(ch chan bool) {
+		processMessages()
+		continueChan <- true
+	}(continueChan)
+
+	return continueChan
+}
+
+func terminate(cancel context.CancelFunc) {
+	log.Debug("main: terminate called")
+	isTerminating = true
+
+	// move all remaining messages from the Stdin Channel to the Message Channel
+	<-flushStdinChannel(timeout)
+
+	// give some time to the Notify function to insert all the messages to the Message Channel
+	time.Sleep(1 * time.Second)
+
+	// cancellation propagation, will stop the normal behaviour from the notelib
+	log.Debug("calling context cancel function")
+	cancel()
+
+	// waits until the notelib has finished sending the last messages
+	log.Debugf("terminate process started...")
+	<-notilib.Terminate(timeout)
+	log.Debugf("terminate process finished!")
+
+	// once everything is cleaned up, exit the program
+	log.Debugf("exit program")
+	os.Exit(0)
 }
 
 func initLogger(logLevel log.Level) {

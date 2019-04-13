@@ -27,6 +27,10 @@ type Notilib interface {
 	// Retry queue a message structure into the Message Channel
 	Retry(msg, guid string, index, numRetrials int)
 
+	// Terminate indicates the library that the client will stop the application and it has to flush the existing notifications contained in the Message Channel.
+	// Moreover, once Terminate is called, notilib will not accept new notifications.
+	Terminate(timeout time.Duration) <-chan bool
+
 	// Retrieves the receive-only Error Channel for reading operations (to be able to handle those errors)
 	GetErrorChannel() <-chan NError
 }
@@ -36,7 +40,16 @@ type notilib struct {
 	listener  Listener
 	notifier  Notifier
 	retrialer Retrialer
+	state     status
 }
+
+type status int
+
+const (
+	idle        status = iota // waiting to listen
+	listening                 // listening notifications from Message Channel to be processed
+	terminating               // the program is finishing
+)
 
 // New creates a new object that implements Notilib interface
 func New(url string, client *http.Client, conf *Config) (Notilib, error) {
@@ -81,6 +94,7 @@ func New(url string, client *http.Client, conf *Config) (Notilib, error) {
 		listener:  listener,
 		notifier:  notifier,
 		retrialer: retrialer,
+		state:     idle,
 	}
 
 	return notilib, nil
@@ -101,6 +115,9 @@ func buildListener(url string, conf *Config, client *http.Client, msgChan chan m
 }
 
 func (n *notilib) Notify(messages []string) (string, error) {
+	if n.state == terminating {
+		return "", fmt.Errorf("the application is terminating, it does not accept new notifications")
+	}
 	return n.notifier.notify(messages)
 }
 
@@ -109,7 +126,19 @@ func (n *notilib) Retry(msg, guid string, index, numRetrials int) {
 }
 
 func (n *notilib) Listen(ctx context.Context) {
+	n.state = listening
 	go n.listener.listen(ctx)
+}
+
+func (n *notilib) Terminate(timeout time.Duration) <-chan bool {
+	n.state = terminating
+	quit := make(chan bool)
+
+	go func(quit chan<- bool) {
+		n.listener.flush(timeout, quit)
+	}(quit)
+
+	return quit
 }
 
 func (n *notilib) GetErrorChannel() <-chan NError {

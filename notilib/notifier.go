@@ -32,7 +32,7 @@ func (n *notifier) notify(messages []string) (string, error) {
 	}
 
 	// queueing messages into the channel to be later dispatched
-	go func(messages []string) {
+	go func(guid string, messages []string) {
 		for idx, msg := range messages {
 			// just queue those messages with content
 			if len(msg) > 0 {
@@ -46,7 +46,8 @@ func (n *notifier) notify(messages []string) (string, error) {
 			log.Debugf("message[%d] added, content=%s", idx, msg)
 		}
 		log.Debugf("%d messages inserted into the msgCh", len(messages))
-	}(messages)
+	}(guid, messages)
+
 	return guid, nil
 }
 
